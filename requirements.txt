@@ -1,0 +1,11 @@
+# Pinned deliberately. Newer releases break this project:
+#   mediapipe >= 1.0  removes the mp.solutions API that app.py is built on
+#   tensorflow 2.20    removes tf.lite.Interpreter used by the classifiers
+mediapipe==0.10.21
+opencv-python==4.11.0.86
+tensorflow==2.19.0
+numpy<2.2
+
+# Windows note: TensorFlow's bundled headers exceed the 260-character path
+# limit. If pip fails with "No such file or directory ... grpc ... .h", create
+# the virtualenv somewhere short such as C:\hgrenv instead of inside this folder.

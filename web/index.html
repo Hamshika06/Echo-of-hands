@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign Speak</title>
+<style>
+  :root {
+    --bg: #f4f6fb;
+    --surface: #ffffff;
+    --surface-2: #eef1f8;
+    --border: #d5dbe8;
+    --text: #131722;
+    --text-dim: #5b6377;
+    --accent: #3b5bdb;
+    --accent-text: #ffffff;
+    --good: #2f9e44;
+    --warn: #e8590c;
+    --idle: #868e96;
+    --radius: 16px;
+    --shadow: 0 1px 2px rgba(16,24,40,.06), 0 8px 24px rgba(16,24,40,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1116;
+      --surface: #171a21;
+      --surface-2: #1e222b;
+      --border: #2c313d;
+      --text: #f1f3f7;
+      --text-dim: #9aa3b5;
+      --accent: #5c7cfa;
+      --accent-text: #0b0d12;
+      --good: #51cf66;
+      --warn: #ff922b;
+      --idle: #6b7280;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1116; --surface: #171a21; --surface-2: #1e222b; --border: #2c313d;
+    --text: #f1f3f7; --text-dim: #9aa3b5; --accent: #5c7cfa; --accent-text: #0b0d12;
+    --good: #51cf66; --warn: #ff922b; --idle: #6b7280;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 24px 16px 64px; }
+
+  header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  h1 { font-size: 1.5rem; margin: 0; letter-spacing: -.02em; }
+  .sub { color: var(--text-dim); font-size: .9rem; }
+
+  .layout { display: grid; grid-template-columns: minmax(0,1.25fr) minmax(0,1fr); gap: 20px; align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden;
+  }
+  .card-pad { padding: 18px; }
+  .card h2 {
+    font-size: .78rem; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--text-dim); margin: 0 0 12px;
+  }
+
+  /* ---- camera ---- */
+  .stage { position: relative; background: #000; aspect-ratio: 4/3; }
+  .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .stage video { display: none; }
+  .stage-msg {
+    position: absolute; inset: 0; display: grid; place-content: center; text-align: center;
+    padding: 24px; color: #e7eaf2; background: rgba(0,0,0,.78); gap: 10px; font-size: .95rem;
+  }
+  .stage-msg[hidden] { display: none; }
+
+  /* ---- live readout ---- */
+  .readout { display: flex; align-items: center; gap: 16px; padding: 16px 18px; border-top: 1px solid var(--border); }
+  .readout .emoji { font-size: 2.6rem; line-height: 1; width: 52px; text-align: center; }
+  .readout .body { flex: 1; min-width: 0; }
+  .readout .name { font-size: 1.35rem; font-weight: 650; letter-spacing: -.01em; }
+  .readout .name.idle { color: var(--text-dim); font-weight: 500; }
+  .meter { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; margin-top: 8px; }
+  .meter i { display: block; height: 100%; width: 0%; background: var(--idle); border-radius: 999px; transition: width .08s linear, background .15s; }
+  .meter i.arming { background: var(--warn); }
+  .meter i.locked { background: var(--good); }
+  .readout .pct { font-variant-numeric: tabular-nums; color: var(--text-dim); font-size: .82rem; margin-top: 6px; }
+
+  /* ---- sentence ---- */
+  .sentence {
+    min-height: 92px; padding: 16px; border-radius: 12px; background: var(--surface-2);
+    border: 1px solid var(--border); font-size: 1.5rem; line-height: 1.35; font-weight: 550;
+    display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start;
+  }
+  .sentence:empty::before { content: "Your message will appear here."; color: var(--text-dim); font-weight: 400; font-size: 1rem; }
+  .chip {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 999px;
+    padding: 4px 14px; font-size: 1.05rem; animation: pop .18s ease-out;
+  }
+  @keyframes pop { from { transform: scale(.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+  .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+  button {
+    font: inherit; font-weight: 550; border-radius: 10px; padding: 11px 18px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text);
+    cursor: pointer; min-height: 44px; transition: transform .06s, background .15s;
+  }
+  button:hover { background: var(--surface-2); }
+  button:active { transform: translateY(1px); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+  button.primary:hover { filter: brightness(1.08); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  /* ---- settings ---- */
+  .field { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; }
+  .field label { color: var(--text-dim); font-size: .9rem; }
+  .field input[type=range] { width: 150px; }
+  .field select { font: inherit; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); max-width: 190px; }
+  .field .val { font-variant-numeric: tabular-nums; font-size: .85rem; color: var(--text-dim); width: 46px; text-align: right; }
+
+  /* ---- reference ---- */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+  .tile {
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px; text-align: center;
+  }
+  .tile.untrained { opacity: .5; }
+  .tile .e { font-size: 1.8rem; line-height: 1.2; }
+  .tile .l { font-weight: 600; font-size: .95rem; margin-top: 2px; }
+  .tile .s { font-size: .72rem; color: var(--text-dim); margin-top: 3px; }
+  .tile .h { font-size: .7rem; color: var(--text-dim); margin-top: 6px; line-height: 1.35; }
+  .tile.active { outline: 2px solid var(--good); background: color-mix(in srgb, var(--good) 12%, var(--surface-2)); }
+
+  .note {
+    margin-top: 16px; padding: 12px 14px; border-radius: 10px; font-size: .84rem;
+    color: var(--text-dim); background: var(--surface-2); border: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Sign Speak</h1>
+    <span class="sub">Hand signs &rarr; text &rarr; spoken voice, for Deaf and non-speaking users</span>
+  </header>
+
+  <div class="layout">
+    <div>
+      <div class="card">
+        <div class="stage">
+          <video id="video" playsinline muted></video>
+          <canvas id="canvas"></canvas>
+          <div class="stage-msg" id="stageMsg">
+            <div style="font-size:2rem">📷</div>
+            <div id="stageMsgText">Loading hand tracking model&hellip;</div>
+            <div><button class="primary" id="startBtn" hidden>Turn on camera</button></div>
+          </div>
+        </div>
+        <div class="readout">
+          <div class="emoji" id="liveEmoji">🤲</div>
+          <div class="body">
+            <div class="name idle" id="liveName">Show a hand to begin</div>
+            <div class="meter"><i id="liveMeter"></i></div>
+            <div class="pct" id="livePct">&mdash;</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-pad" style="margin-top:20px">
+        <h2>Message</h2>
+        <div class="sentence" id="sentence" aria-live="polite"></div>
+        <div class="row">
+          <button class="primary" id="speakBtn" disabled>🔊 Speak message</button>
+          <button id="undoBtn" disabled>Undo</button>
+          <button id="clearBtn" disabled>Clear</button>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card card-pad">
+        <h2>Settings</h2>
+        <div class="field">
+          <label for="holdMs">Hold to confirm</label>
+          <input type="range" id="holdMs" min="200" max="2500" step="100" value="900">
+          <span class="val" id="holdMsVal">0.9s</span>
+        </div>
+        <div class="field">
+          <label for="conf">Confidence needed</label>
+          <input type="range" id="conf" min="50" max="99" step="1" value="80">
+          <span class="val" id="confVal">80%</span>
+        </div>
+        <div class="field">
+          <label for="rate">Speech speed</label>
+          <input type="range" id="rate" min="0.5" max="1.5" step="0.1" value="1">
+          <span class="val" id="rateVal">1.0x</span>
+        </div>
+        <div class="field">
+          <label for="voice">Voice</label>
+          <select id="voice"></select>
+        </div>
+        <div class="field">
+          <label for="autoSpeak">Speak each sign</label>
+          <input type="checkbox" id="autoSpeak" checked style="width:20px;height:20px">
+        </div>
+      </div>
+
+      <div class="card card-pad" style="margin-top:20px">
+        <h2>Sign reference</h2>
+        <div class="grid" id="grid"></div>
+        <div class="note" id="trainNote"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { FilesetResolver, HandLandmarker }
+  from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/vision_bundle.mjs";
+
+const $ = id => document.getElementById(id);
+const video = $("video"), canvas = $("canvas"), ctx = canvas.getContext("2d");
+const stageMsg = $("stageMsg"), stageMsgText = $("stageMsgText"), startBtn = $("startBtn");
+
+let model = null;       // weights exported by train_model.py
+let gestures = [];
+let landmarker = null;
+let running = false;
+
+/* ---------- the trained network, re-implemented for the browser ----------
+   Must match utils pre_process_landmark() in app.py exactly: pixel coords,
+   made relative to the wrist, flattened, divided by the largest magnitude. */
+function preprocess(landmarks, w, h) {
+  const pts = landmarks.map(p => [
+    Math.min(Math.floor(p.x * w), w - 1),
+    Math.min(Math.floor(p.y * h), h - 1),
+  ]);
+  const [bx, by] = pts[0];
+  const flat = [];
+  for (const [x, y] of pts) flat.push(x - bx, y - by);
+  const max = Math.max(...flat.map(Math.abs)) || 1;
+  return flat.map(v => v / max);
+}
+
+function forward(input) {
+  let a = input;
+  for (const layer of model.layers) {
+    const out = new Array(layer.biases.length);
+    for (let j = 0; j < out.length; j++) {
+      let sum = layer.biases[j];
+      for (let i = 0; i < a.length; i++) sum += a[i] * layer.weights[i][j];
+      out[j] = sum;
+    }
+    if (layer.activation === "relu") {
+      for (let j = 0; j < out.length; j++) if (out[j] < 0) out[j] = 0;
+    } else if (layer.activation === "softmax") {
+      const m = Math.max(...out);
+      let total = 0;
+      for (let j = 0; j < out.length; j++) { out[j] = Math.exp(out[j] - m); total += out[j]; }
+      for (let j = 0; j < out.length; j++) out[j] /= total;
+    }
+    a = out;
+  }
+  return a;
+}
+
+/* ---------- drawing ---------- */
+const BONES = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],
+  [10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+
+function drawHand(landmarks, w, h, colour) {
+  ctx.lineCap = "round";
+  for (const [a, b] of BONES) {
+    const p = landmarks[a], q = landmarks[b];
+    ctx.beginPath();
+    ctx.moveTo(p.x * w, p.y * h);
+    ctx.lineTo(q.x * w, q.y * h);
+    ctx.strokeStyle = "rgba(0,0,0,.65)"; ctx.lineWidth = 7; ctx.stroke();
+    ctx.strokeStyle = colour; ctx.lineWidth = 3; ctx.stroke();
+  }
+  for (const p of landmarks) {
+    ctx.beginPath();
+    ctx.arc(p.x * w, p.y * h, 4.5, 0, Math.PI * 2);
+    ctx.fillStyle = colour; ctx.fill();
+    ctx.strokeStyle = "rgba(0,0,0,.65)"; ctx.lineWidth = 1.5; ctx.stroke();
+  }
+}
+
+/* ---------- sentence state ---------- */
+const spoken = [];
+function renderSentence() {
+  $("sentence").innerHTML = spoken.map(s => `<span class="chip">${s}</span>`).join("");
+  const empty = spoken.length === 0;
+  $("speakBtn").disabled = empty;
+  $("undoBtn").disabled = empty;
+  $("clearBtn").disabled = empty;
+}
+
+function speak(text) {
+  if (!text || !window.speechSynthesis) return;
+  const u = new SpeechSynthesisUtterance(text);
+  u.rate = parseFloat($("rate").value);
+  const chosen = $("voice").value;
+  if (chosen) {
+    const v = speechSynthesis.getVoices().find(v => v.voiceURI === chosen);
+    if (v) { u.voice = v; u.lang = v.lang; }
+  }
+  speechSynthesis.cancel();
+  speechSynthesis.speak(u);
+}
+
+/* ---------- hold-to-confirm ---------- */
+let candidate = -1, heldSince = 0, lastCommitted = -1;
+
+function updateLive(gesture, confidence, progress, state) {
+  $("liveEmoji").textContent = gesture ? gesture.emoji : "🤲";
+  const name = $("liveName");
+  name.textContent = gesture ? gesture.speech : "Show a hand to begin";
+  name.classList.toggle("idle", !gesture);
+  const meter = $("liveMeter");
+  meter.style.width = (progress * 100).toFixed(1) + "%";
+  meter.className = state;
+  $("livePct").textContent = gesture
+    ? `${gesture.label} · ${(confidence * 100).toFixed(0)}% confident`
+    : "—";
+  for (const tile of document.querySelectorAll(".tile"))
+    tile.classList.toggle("active", !!gesture && +tile.dataset.id === gesture.id);
+}
+
+function commit(gesture) {
+  spoken.push(gesture.speech);
+  renderSentence();
+  if ($("autoSpeak").checked) speak(gesture.speech);
+}
+
+/* ---------- main loop ---------- */
+let lastVideoTime = -1;
+
+function loop() {
+  if (!running) return;
+  const w = canvas.width, h = canvas.height;
+
+  if (video.currentTime !== lastVideoTime && video.readyState >= 2) {
+    lastVideoTime = video.currentTime;
+
+    // Mirror the frame before detection: the training data was recorded from a
+    // mirrored preview, so the model expects mirrored hands.
+    ctx.save();
+    ctx.translate(w, 0); ctx.scale(-1, 1);
+    ctx.drawImage(video, 0, 0, w, h);
+    ctx.restore();
+
+    const result = landmarker.detectForVideo(canvas, performance.now());
+    const hands = result.landmarks || [];
+
+    if (hands.length === 0) {
+      candidate = -1; lastCommitted = -1;
+      updateLive(null, 0, 0, "");
+    } else {
+      const landmarks = hands[0];
+      const probs = forward(preprocess(landmarks, w, h));
+      let best = 0;
+      for (let i = 1; i < probs.length; i++) if (probs[i] > probs[best]) best = i;
+      const confidence = probs[best];
+      const gesture = gestures[best];
+      const threshold = parseInt($("conf").value, 10) / 100;
+      const holdMs = parseInt($("holdMs").value, 10);
+
+      let progress = 0, state = "";
+      if (confidence >= threshold && gesture.samples > 0) {
+        if (best !== candidate) { candidate = best; heldSince = performance.now(); }
+        const held = performance.now() - heldSince;
+        progress = Math.min(held / holdMs, 1);
+        state = progress >= 1 ? "locked" : "arming";
+        if (progress >= 1 && best !== lastCommitted) {
+          commit(gesture);
+          lastCommitted = best;
+        }
+      } else {
+        candidate = -1; lastCommitted = -1;
+        progress = confidence;
+      }
+
+      drawHand(landmarks, w, h, state === "locked" ? "#51cf66"
+             : state === "arming" ? "#ff922b" : "#ffffff");
+      updateLive(gesture, confidence, progress, state);
+    }
+  }
+  requestAnimationFrame(loop);
+}
+
+/* ---------- setup ---------- */
+function buildGrid() {
+  $("grid").innerHTML = gestures.map(g => `
+    <div class="tile ${g.samples > 0 ? "" : "untrained"}" data-id="${g.id}">
+      <div class="e">${g.emoji}</div>
+      <div class="l">${g.speech}</div>
+      <div class="s">${g.samples > 0 ? g.samples + " samples" : "not trained yet"}</div>
+      <div class="h">${g.hint}</div>
+    </div>`).join("");
+
+  const untrained = gestures.filter(g => g.samples === 0);
+  $("trainNote").textContent = untrained.length
+    ? `${untrained.length} of ${gestures.length} signs have no training data yet and cannot be recognised. Record them with:  python collect_data.py   then retrain with:  python train_model.py`
+    : `All ${gestures.length} signs are trained.`;
+}
+
+function loadVoices() {
+  const select = $("voice");
+  const voices = speechSynthesis.getVoices();
+  select.innerHTML = `<option value="">Browser default</option>` +
+    voices.map(v => `<option value="${v.voiceURI}">${v.name} (${v.lang})</option>`).join("");
+}
+
+async function start() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 960 }, height: { ideal: 720 }, facingMode: "user" },
+      audio: false,
+    });
+    video.srcObject = stream;
+    await video.play();
+    canvas.width = video.videoWidth || 960;
+    canvas.height = video.videoHeight || 720;
+    stageMsg.hidden = true;
+    running = true;
+    loop();
+  } catch (err) {
+    stageMsg.hidden = false;
+    stageMsgText.textContent = "Camera blocked: " + err.message +
+      ". Allow camera access and reload.";
+    startBtn.hidden = false;
+  }
+}
+
+(async function init() {
+  for (const [id, fmt] of [["holdMs", v => (v / 1000).toFixed(1) + "s"],
+                           ["conf", v => v + "%"], ["rate", v => (+v).toFixed(1) + "x"]]) {
+    const el = $(id), out = $(id + "Val");
+    el.addEventListener("input", () => out.textContent = fmt(el.value));
+    out.textContent = fmt(el.value);
+  }
+  $("speakBtn").onclick = () => speak(spoken.join(", "));
+  $("undoBtn").onclick = () => { spoken.pop(); renderSentence(); };
+  $("clearBtn").onclick = () => { spoken.length = 0; renderSentence(); };
+
+  loadVoices();
+  speechSynthesis.onvoiceschanged = loadVoices;
+
+  try {
+    model = await (await fetch("model_weights.json")).json();
+  } catch (err) {
+    stageMsgText.textContent =
+      "Could not load model_weights.json. Run  python train_model.py  and serve this " +
+      "folder over http (not file://).";
+    return;
+  }
+  gestures = model.gestures;
+  buildGrid();
+
+  stageMsgText.textContent = "Loading hand tracking model…";
+  const fileset = await FilesetResolver.forVisionTasks(
+    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/wasm");
+  const options = delegate => ({
+    baseOptions: {
+      modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+      delegate,
+    },
+    runningMode: "VIDEO",
+    numHands: 1,
+    minHandDetectionConfidence: 0.7,
+    minTrackingConfidence: 0.5,
+  });
+  try {
+    landmarker = await HandLandmarker.createFromOptions(fileset, options("GPU"));
+  } catch (err) {
+    // Some machines have no working WebGL backend; CPU is slower but universal.
+    landmarker = await HandLandmarker.createFromOptions(fileset, options("CPU"));
+  }
+
+  stageMsgText.textContent = "Ready. This app needs your camera to read hand signs.";
+  startBtn.hidden = false;
+  startBtn.onclick = start;
+  renderSentence();
+})();
+</script>
+</body>
+</html>
