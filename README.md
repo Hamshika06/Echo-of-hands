@@ -159,22 +159,6 @@ locally — in the browser tab for the web app. The training data
 (`keypoint.csv`) contains only normalised landmark coordinates; no images or
 video are stored.
 
-## Credits
-
-Built on [hand-gesture-recognition-mediapipe](https://github.com/kinivi/hand-gesture-recognition-mediapipe)
-by [Nikita Kiselov](https://github.com/kinivi), itself a translation of
-[hand-gesture-recognition-using-mediapipe](https://github.com/Kazuhito00/hand-gesture-recognition-using-mediapipe)
-by [Kazuhito Takahashi](https://twitter.com/KzhtTkhs).
-
-Inherited from those projects: the MediaPipe landmark pipeline, the keypoint
-preprocessing, the MLP architecture, the point-history classifier and the
-training notebooks.
-
-Added here: the 18-sign communication vocabulary and `gestures.csv` schema, the
-guided collector, the retraining and web-export script, the browser app with
-speech output and sentence building, and pinned dependencies.
-
-Hand landmark detection by [MediaPipe](https://mediapipe.dev/).
 
 ## License
 
